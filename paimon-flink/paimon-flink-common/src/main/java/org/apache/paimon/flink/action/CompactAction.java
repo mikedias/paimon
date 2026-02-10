@@ -51,6 +51,7 @@ import org.apache.paimon.predicate.PredicateProjectionConverter;
 import org.apache.paimon.table.BucketMode;
 import org.apache.paimon.table.FileStoreTable;
 import org.apache.paimon.table.sink.CommitMessage;
+import org.apache.paimon.table.sink.PartitionBucketCountLoader;
 import org.apache.paimon.table.source.DataSplit;
 import org.apache.paimon.types.RowType;
 import org.apache.paimon.utils.InternalRowPartitionComputer;
@@ -450,12 +451,14 @@ public class CompactAction extends TableActionBase {
                             partitionSpec,
                             options.get(FlinkConnectorOptions.SCAN_PARALLELISM));
 
+            RowDataChannelComputer channelComputer =
+                    new RowDataChannelComputer(
+                            realTable.schema(), false, PartitionBucketCountLoader.load(realTable));
+            DataStream<InternalRow> asInternalRow =
+                    FlinkSinkBuilder.mapToInternalRow(sourcePair.getLeft(), realTable.rowType());
+
             DataStream<InternalRow> partitioned =
-                    FlinkStreamPartitioner.partition(
-                            FlinkSinkBuilder.mapToInternalRow(
-                                    sourcePair.getLeft(), realTable.rowType()),
-                            new RowDataChannelComputer(realTable.schema(), false),
-                            null);
+                    FlinkStreamPartitioner.partition(asInternalRow, channelComputer, null);
             FixedBucketSink sink = new FixedBucketSink(realTable, null, null);
             DataStream<Committable> written =
                     sink.doWrite(partitioned, commitUser, partitioned.getParallelism())

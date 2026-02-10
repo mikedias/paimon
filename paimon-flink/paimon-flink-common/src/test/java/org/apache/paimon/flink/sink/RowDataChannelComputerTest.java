@@ -110,11 +110,12 @@ public class RowDataChannelComputerTest {
 
     private void testImpl(TableSchema schema, List<InternalRow> input) {
         ThreadLocalRandom random = ThreadLocalRandom.current();
-        FixedBucketRowKeyExtractor extractor = new FixedBucketRowKeyExtractor(schema);
+        FixedBucketRowKeyExtractor extractor = new FixedBucketRowKeyExtractor(schema, null);
 
         int numChannels = random.nextInt(10) + 1;
         boolean hasLogSink = random.nextBoolean();
-        RowDataChannelComputer channelComputer = new RowDataChannelComputer(schema, hasLogSink);
+        RowDataChannelComputer channelComputer =
+                new RowDataChannelComputer(schema, hasLogSink, null);
         channelComputer.setup(numChannels);
 
         // assert that channel(record) and channel(partition, bucket) gives the same result

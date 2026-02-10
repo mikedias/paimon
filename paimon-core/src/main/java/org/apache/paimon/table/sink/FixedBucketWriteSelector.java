@@ -18,9 +18,14 @@
 
 package org.apache.paimon.table.sink;
 
+import org.apache.paimon.data.BinaryRow;
 import org.apache.paimon.data.InternalRow;
 import org.apache.paimon.schema.TableSchema;
 import org.apache.paimon.table.BucketMode;
+
+import javax.annotation.Nullable;
+
+import java.util.Map;
 
 /** A {@link WriteSelector} for {@link BucketMode#HASH_FIXED}. */
 public class FixedBucketWriteSelector implements WriteSelector {
@@ -28,17 +33,20 @@ public class FixedBucketWriteSelector implements WriteSelector {
     private static final long serialVersionUID = 1L;
 
     private final TableSchema schema;
+    @Nullable private final Map<BinaryRow, Integer> partitionBucketCounts;
 
     private transient KeyAndBucketExtractor<InternalRow> extractor;
 
-    public FixedBucketWriteSelector(TableSchema schema) {
+    public FixedBucketWriteSelector(
+            TableSchema schema, @Nullable Map<BinaryRow, Integer> partitionBucketCounts) {
         this.schema = schema;
+        this.partitionBucketCounts = partitionBucketCounts;
     }
 
     @Override
     public int select(InternalRow row, int numWriters) {
         if (extractor == null) {
-            extractor = new FixedBucketRowKeyExtractor(schema);
+            extractor = new FixedBucketRowKeyExtractor(schema, partitionBucketCounts);
         }
         extractor.setRecord(row);
         return ChannelComputer.select(extractor.partition(), extractor.bucket(), numWriters);

@@ -25,6 +25,10 @@ import org.apache.paimon.table.sink.ChannelComputer;
 import org.apache.paimon.table.sink.FixedBucketRowKeyExtractor;
 import org.apache.paimon.table.sink.KeyAndBucketExtractor;
 
+import javax.annotation.Nullable;
+
+import java.util.Map;
+
 /** {@link ChannelComputer} for {@link InternalRow}. */
 public class RowDataChannelComputer implements ChannelComputer<InternalRow> {
 
@@ -32,19 +36,24 @@ public class RowDataChannelComputer implements ChannelComputer<InternalRow> {
 
     private final TableSchema schema;
     private final boolean hasLogSink;
+    @Nullable private final Map<BinaryRow, Integer> partitionBucketCounts;
 
     private transient int numChannels;
     private transient KeyAndBucketExtractor<InternalRow> extractor;
 
-    public RowDataChannelComputer(TableSchema schema, boolean hasLogSink) {
+    public RowDataChannelComputer(
+            TableSchema schema,
+            boolean hasLogSink,
+            @Nullable Map<BinaryRow, Integer> partitionBucketCounts) {
         this.schema = schema;
         this.hasLogSink = hasLogSink;
+        this.partitionBucketCounts = partitionBucketCounts;
     }
 
     @Override
     public void setup(int numChannels) {
         this.numChannels = numChannels;
-        this.extractor = new FixedBucketRowKeyExtractor(schema);
+        this.extractor = new FixedBucketRowKeyExtractor(schema, partitionBucketCounts);
     }
 
     @Override

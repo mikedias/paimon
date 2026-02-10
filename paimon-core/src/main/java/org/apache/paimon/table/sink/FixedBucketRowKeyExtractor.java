@@ -26,20 +26,28 @@ import org.apache.paimon.data.BinaryRow;
 import org.apache.paimon.data.InternalRow;
 import org.apache.paimon.schema.TableSchema;
 
+import javax.annotation.Nullable;
+
+import java.util.Map;
+
 /** {@link KeyAndBucketExtractor} for {@link InternalRow}. */
 public class FixedBucketRowKeyExtractor extends RowKeyExtractor {
 
-    private final int numBuckets;
+    private final int defaultNumBuckets;
     private final boolean sameBucketKeyAndTrimmedPrimaryKey;
     private final Projection bucketKeyProjection;
+
+    @Nullable private final Map<BinaryRow, Integer> partitionBucketCounts;
 
     private BinaryRow reuseBucketKey;
     private Integer reuseBucket;
     private final BucketFunction bucketFunction;
 
-    public FixedBucketRowKeyExtractor(TableSchema schema) {
+    public FixedBucketRowKeyExtractor(
+            TableSchema schema, @Nullable Map<BinaryRow, Integer> partitionBucketCounts) {
         super(schema);
-        numBuckets = new CoreOptions(schema.options()).bucket();
+        this.defaultNumBuckets = new CoreOptions(schema.options()).bucket();
+        this.partitionBucketCounts = partitionBucketCounts;
         bucketFunction =
                 BucketFunction.create(
                         new CoreOptions(schema.options()), schema.logicalBucketKeyType());
@@ -67,11 +75,21 @@ public class FixedBucketRowKeyExtractor extends RowKeyExtractor {
         return reuseBucketKey;
     }
 
+    private int resolveNumBuckets() {
+        if (partitionBucketCounts != null) {
+            Integer perPartition = partitionBucketCounts.get(partition());
+            if (perPartition != null) {
+                return perPartition;
+            }
+        }
+        return defaultNumBuckets;
+    }
+
     @Override
     public int bucket() {
         BinaryRow bucketKey = bucketKey();
         if (reuseBucket == null) {
-            reuseBucket = bucketFunction.bucket(bucketKey, numBuckets);
+            reuseBucket = bucketFunction.bucket(bucketKey, resolveNumBuckets());
         }
         return reuseBucket;
     }

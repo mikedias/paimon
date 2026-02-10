@@ -21,6 +21,7 @@ package org.apache.paimon.flink.sink;
 import org.apache.paimon.CoreOptions;
 import org.apache.paimon.CoreOptions.PartitionSinkStrategy;
 import org.apache.paimon.annotation.Public;
+import org.apache.paimon.data.BinaryRow;
 import org.apache.paimon.data.InternalRow;
 import org.apache.paimon.flink.FlinkConnectorOptions;
 import org.apache.paimon.flink.FlinkRowWrapper;
@@ -31,6 +32,7 @@ import org.apache.paimon.table.BucketMode;
 import org.apache.paimon.table.FileStoreTable;
 import org.apache.paimon.table.Table;
 import org.apache.paimon.table.sink.ChannelComputer;
+import org.apache.paimon.table.sink.PartitionBucketCountLoader;
 
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -268,11 +270,14 @@ public class FlinkSinkBuilder {
                             + " then the parallelism of writerOperator will be set to bucketNums.");
             parallelism = bucketNums;
         }
-        DataStream<InternalRow> partitioned =
-                partition(
-                        input,
-                        new RowDataChannelComputer(table.schema(), logSinkFunction != null),
-                        parallelism);
+        // Load per-partition bucket counts to support rescaled partitions with different
+        // bucket counts. For non-partitioned tables this returns an empty map.
+        Map<BinaryRow, Integer> partitionBucketCounts = PartitionBucketCountLoader.load(table);
+        RowDataChannelComputer channelComputer =
+                new RowDataChannelComputer(
+                        table.schema(), logSinkFunction != null, partitionBucketCounts);
+
+        DataStream<InternalRow> partitioned = partition(input, channelComputer, parallelism);
         FixedBucketSink sink = new FixedBucketSink(table, overwritePartition, logSinkFunction);
         return sink.sinkFrom(partitioned);
     }
