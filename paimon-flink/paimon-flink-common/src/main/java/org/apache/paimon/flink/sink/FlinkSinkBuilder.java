@@ -50,6 +50,7 @@ import org.slf4j.LoggerFactory;
 import javax.annotation.Nullable;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -272,7 +273,13 @@ public class FlinkSinkBuilder {
         }
         // Load per-partition bucket counts to support rescaled partitions with different
         // bucket counts. For non-partitioned tables this returns an empty map.
-        Map<BinaryRow, Integer> partitionBucketCounts = PartitionBucketCountLoader.load(table);
+        // Skip loading when overwritePartition is set (e.g. during rescale), because the
+        // partition data is being fully replaced and should use the new bucket count from
+        // the table schema rather than the old counts from existing data.
+        Map<BinaryRow, Integer> partitionBucketCounts =
+                overwritePartition != null
+                        ? Collections.emptyMap()
+                        : PartitionBucketCountLoader.load(table);
         RowDataChannelComputer channelComputer =
                 new RowDataChannelComputer(
                         table.schema(), logSinkFunction != null, partitionBucketCounts);
